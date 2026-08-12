@@ -1,0 +1,32 @@
+{
+  "name": "lmc-visualiser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive 3D visualisation of LMC vs Milky Way star classification",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@observablehq/plot": "^0.6.17",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.7.0",
+    "gsap": "^3.15.0",
+    "next": "^16.2.12",
+    "onnxruntime-web": "^1.27.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "three": "^0.185.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.185.0",
+    "typescript": "^6.0.3"
+  }
+}

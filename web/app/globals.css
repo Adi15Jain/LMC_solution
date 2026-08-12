@@ -1,0 +1,643 @@
+:root {
+  --bg: #05070d;
+  --fg: #e8ecf5;
+  --muted: #8c93a6;
+  --dim: #5a6175;
+  --line: #1e2434;
+  --panel-bg: rgba(9, 12, 20, 0.86);
+  --lmc: #ff8c26;
+  --mw: #5f8ff2;
+  --wrong: #ff2947;
+  --ok: #3ddc97;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.shell {
+  position: relative;
+  height: 100dvh;
+  width: 100vw;
+}
+
+/* The canvas is pinned; the scroll layer above it is what actually moves. */
+.canvas-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.scroll-layer {
+  position: relative;
+  z-index: 2;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Sandbox: let pointer events reach the canvas so OrbitControls works. */
+.scroll-layer.is-passthrough {
+  pointer-events: none;
+}
+
+/* One viewport-height spacer per act. Empty on purpose — the copy lives in the
+   fixed HUD so it can cross-fade independently of scroll position. */
+.act {
+  height: 100dvh;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- HUD ---- */
+
+.hud {
+  position: fixed;
+  z-index: 3;
+  left: clamp(1.25rem, 4vw, 4rem);
+  bottom: clamp(1.5rem, 6vh, 4rem);
+  max-width: min(34rem, 46vw);
+  pointer-events: none;
+}
+
+.hud-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 0.7rem;
+}
+
+.hud-loading {
+  color: var(--lmc);
+}
+
+.hud-title {
+  font-size: clamp(1.5rem, 3.2vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.hud-body {
+  margin-top: 0.85rem;
+  font-size: clamp(0.88rem, 1.05vw, 1rem);
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 32rem;
+  text-wrap: pretty;
+}
+
+.hud-progress {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 1.5rem;
+  list-style: none;
+  pointer-events: auto;
+}
+
+.hud-progress button {
+  display: block;
+  width: 1.6rem;
+  height: 10px;
+  padding: 4px 0;
+  background: none;
+}
+
+.hud-progress button::before {
+  content: "";
+  display: block;
+  height: 2px;
+  background: #2a3040;
+  transition: background 240ms ease;
+}
+
+.hud-progress button:hover::before {
+  background: #48506a;
+}
+
+.hud-progress button.is-current::before {
+  background: var(--lmc);
+}
+
+/* -------------------------------------------------------------- PANEL ---- */
+
+.panel-slot {
+  position: fixed;
+  z-index: 4;
+  top: clamp(1rem, 3vh, 2.5rem);
+  right: clamp(1rem, 2.5vw, 2.5rem);
+  width: min(23rem, 40vw);
+  max-height: calc(100dvh - 5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+
+.panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.1rem 1.15rem 1.25rem;
+}
+
+.panel-head h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panel-sub {
+  margin-top: 0.3rem;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* ------------------------------------------------- confusion matrix ---- */
+
+.matrix {
+  display: grid;
+  grid-template-columns: 4.6rem 1fr 1fr;
+  gap: 3px;
+  margin-top: 1rem;
+}
+
+.matrix-colhead,
+.matrix-rowhead {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+}
+
+.matrix-colhead {
+  justify-content: center;
+  padding-bottom: 0.3rem;
+}
+
+.matrix-cell {
+  position: relative;
+  padding: 0.6rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  text-align: center;
+  overflow: hidden;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+/* --fill is the row-normalised rate, so the diagonal reads at a glance. */
+.matrix-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mw);
+  opacity: calc(var(--fill, 0) * 0.34);
+}
+
+.matrix-cell.is-bad::before {
+  background: var(--wrong);
+  opacity: calc(0.12 + var(--fill, 0) * 0.5);
+}
+
+.matrix-cell:hover {
+  border-color: #3b455e;
+}
+
+.matrix-cell.is-active {
+  border-color: var(--lmc);
+  transform: translateY(-1px);
+}
+
+.matrix-count,
+.matrix-rate,
+.matrix-label {
+  position: relative;
+  display: block;
+}
+
+.matrix-count {
+  font-size: 1.02rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.matrix-rate {
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.matrix-label {
+  margin-top: 0.25rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.matrix-hint {
+  margin-top: 0.7rem;
+  font-size: 0.72rem;
+  color: var(--dim);
+  line-height: 1.4;
+}
+
+/* -------------------------------------------------------- metrics ---- */
+
+.metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.metric dt {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.metric dd {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.12rem;
+}
+
+.metric p {
+  font-size: 0.66rem;
+  color: var(--dim);
+  line-height: 1.35;
+  margin-top: 0.1rem;
+}
+
+/* --------------------------------------------------------- sliders ---- */
+
+.slider-row {
+  margin-top: 1.1rem;
+}
+
+.slider-row label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+
+.slider-row strong {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--lmc);
+}
+
+/* ---------------------------------------------------------- bars ---- */
+
+.bars {
+  list-style: none;
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.bar-label {
+  font-size: 0.78rem;
+}
+
+.bar-value {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  height: 5px;
+  background: #161c2a;
+  border-radius: 3px;
+  margin-top: 0.28rem;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--mw), var(--lmc));
+  border-radius: 3px;
+  transition: width 400ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.bar-blurb {
+  font-size: 0.66rem;
+  color: var(--dim);
+  margin-top: 0.22rem;
+}
+
+.callout {
+  margin-top: 1rem;
+  padding: 0.7rem 0.8rem;
+  border-left: 2px solid var(--lmc);
+  background: rgba(255, 140, 38, 0.07);
+  border-radius: 0 7px 7px 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.callout strong {
+  color: var(--fg);
+}
+
+.callout.is-warn {
+  border-left-color: var(--wrong);
+  background: rgba(255, 41, 71, 0.07);
+}
+
+/* -------------------------------------------------- distributions ---- */
+
+.hist {
+  margin-top: 1rem;
+}
+
+.hist svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #0a0e18;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.hist-mw {
+  fill: rgba(95, 143, 242, 0.5);
+  stroke: var(--mw);
+  stroke-width: 1;
+}
+
+.hist-lmc {
+  fill: rgba(255, 140, 38, 0.45);
+  stroke: var(--lmc);
+  stroke-width: 1;
+}
+
+.hist-axis {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  font-size: 0.66rem;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hist-axis strong {
+  color: var(--fg);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.hist-blurb {
+  font-size: 0.68rem;
+  color: var(--dim);
+  margin-top: 0.3rem;
+  line-height: 1.4;
+}
+
+.hist-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.swatch.is-mw {
+  background: var(--mw);
+}
+
+.swatch.is-lmc {
+  background: var(--lmc);
+  margin-left: 0.5rem;
+}
+
+.hist-d {
+  margin-left: auto;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.feature-list {
+  list-style: none;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.3rem;
+}
+
+.feature-btn {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  text-align: left;
+  transition: background 140ms ease;
+}
+
+.feature-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.feature-btn.is-active {
+  background: rgba(255, 140, 38, 0.1);
+}
+
+.feature-name {
+  font-size: 0.73rem;
+}
+
+.feature-d {
+  font-size: 0.68rem;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.feature-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  background: #161c2a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.feature-fill {
+  display: block;
+  height: 100%;
+  background: var(--lmc);
+  opacity: 0.65;
+}
+
+/* -------------------------------------------------------- controls ---- */
+
+.ctl {
+  border: none;
+  margin-top: 1rem;
+}
+
+.ctl legend {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 0.45rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip {
+  padding: 0.28rem 0.6rem;
+  font-size: 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  transition: all 140ms ease;
+}
+
+.chip:hover {
+  border-color: #3b455e;
+  color: var(--fg);
+}
+
+.chip.is-active {
+  border-color: var(--lmc);
+  color: var(--lmc);
+  background: rgba(255, 140, 38, 0.1);
+}
+
+.toggles {
+  margin-top: 1.1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.toggle input {
+  accent-color: var(--lmc);
+}
+
+.toggle em {
+  color: var(--dim);
+  font-style: normal;
+  font-size: 0.68rem;
+}
+
+/* ---------------------------------------------------------- error ---- */
+
+.scene-error {
+  display: grid;
+  place-content: center;
+  gap: 0.75rem;
+  height: 100dvh;
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.scene-error code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--wrong);
+  word-break: break-word;
+}
+
+/* --------------------------------------------------------- mobile ---- */
+
+@media (max-width: 900px) {
+  .hud {
+    max-width: none;
+    right: clamp(1.25rem, 4vw, 4rem);
+  }
+  .panel-slot {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-height: 46dvh;
+    border-radius: 12px 12px 0 0;
+  }
+  .hud {
+    bottom: 48dvh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-layer {
+    scroll-behavior: auto;
+  }
+  .hud-progress button::before,
+  .bar-fill,
+  .matrix-cell {
+    transition: none;
+  }
+}

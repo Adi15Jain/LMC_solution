@@ -1,0 +1,48 @@
+{
+    "seed": 42,
+    "test_size": 0.2,
+    "n_rows_clean": 1269704,
+    "n_train": 1015763,
+    "n_test": 253941,
+    "lmc_fraction": 0.2183,
+    "scale_pos_weight": 3.5808,
+    "roc_auc": 0.9998,
+    "pr_auc": 0.9992,
+    "threshold": 0.5,
+    "confusion": {
+        "tn": 197400,
+        "fp": 1106,
+        "fn": 235,
+        "tp": 55200
+    },
+    "recall_lmc": 0.9958,
+    "purity_lmc": 0.9804,
+    "contamination_rate": 0.0056,
+    "features": [
+        "pmra",
+        "pmdec",
+        "pm_total",
+        "parallax",
+        "pmra_error",
+        "pmdec_error",
+        "parallax_error",
+        "phot_g_mean_mag",
+        "phot_bp_mean_mag",
+        "phot_rp_mean_mag",
+        "bp_rp"
+    ],
+    "excluded_features": ["ra", "dec"],
+    "importance": {
+        "pmra": 0.09181,
+        "pmdec": 0.169,
+        "pm_total": 0.67628,
+        "parallax": 0.00306,
+        "pmra_error": 0.00652,
+        "pmdec_error": 0.00592,
+        "parallax_error": 0.00329,
+        "phot_g_mean_mag": 0.0039,
+        "phot_bp_mean_mag": 0.00887,
+        "phot_rp_mean_mag": 0.01029,
+        "bp_rp": 0.02107
+    }
+}

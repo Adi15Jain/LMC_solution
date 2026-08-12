@@ -1,0 +1,31 @@
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Large data files — too big for git (download/regenerate locally)
+# Anchored with a leading slash: a bare `data` would also match web/public/data/
+# and silently swallow the exported web binaries.
+/data/
+/data.zip
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Model artifacts / large outputs (keep the code, not the GBs)
+outputs/*.pkl
+outputs/*.joblib
+
+# Source 3D assets — 73 MB of FBX + 4K PNGs from ESA SCIFLEET.
+# Re-downloadable from https://scifleet.esa.int; the converted .glb is what ships.
+/assets/
+
+# Web app
+web/node_modules/
+web/.next/
+web/out/
+# Exported web assets ARE committed — they're a few MB and the deploy needs them.
+

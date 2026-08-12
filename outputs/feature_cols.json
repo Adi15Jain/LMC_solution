@@ -1,0 +1,13 @@
+[
+    "pmra",
+    "pmdec",
+    "pm_total",
+    "parallax",
+    "pmra_error",
+    "pmdec_error",
+    "parallax_error",
+    "phot_g_mean_mag",
+    "phot_bp_mean_mag",
+    "phot_rp_mean_mag",
+    "bp_rp"
+]
