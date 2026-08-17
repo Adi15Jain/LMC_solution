@@ -9,21 +9,22 @@ Produces web/public/data/analysis.json:
     - per-feature histograms, split by class (the distributions)
     - class-separation stats
 
-CRITICAL: every metric here is computed on the HELD-OUT TEST SPLIT only.
-We reproduce notebook 02's exact split (test_size=0.2, stratify=y, random_state=42),
-so these numbers match the notebook and are honest — scoring the training rows would
-inflate recall from 99.58% to 99.84% in the one place we claim to be rigorous.
+CRITICAL: every metric here is computed on the HELD-OUT TEST SPLIT only — scoring
+training rows would inflate recall from 99.58% to 99.84% in the one place we claim to
+be rigorous. The split is *loaded* from the model's own split.npz, not re-derived from
+a seed, and loading verifies a hash of the labels it was built from.
 
 Usage:
     python scripts/export_analysis.py
+    python scripts/export_analysis.py --model v2_robust --out analysis.v2.json
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
-import joblib
 import numpy as np
 import polars as pl
 from sklearn.metrics import (
@@ -32,11 +33,13 @@ from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
 )
-from sklearn.model_selection import train_test_split
+
+import lmc
+from lmc import models
+from lmc.split import load_split
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DATA = ROOT / "web" / "public" / "data"
-TRAIN = ROOT / "data" / "LMC+MW_GOG_trainingset_frac=0.2.csv"
 
 N_THRESHOLDS = 101
 N_CURVE_POINTS = 200
@@ -55,28 +58,9 @@ FEATURE_META = {
     "phot_bp_mean_mag":("BP magnitude",          "Blue-band brightness"),
     "phot_rp_mean_mag":("RP magnitude",          "Red-band brightness"),
     "bp_rp":           ("Colour (BP−RP)",        "Temperature proxy"),
+    "pm_chi2":         ("PM χ² from LMC",        "Distance from the clump, in units of the star's own error"),
+    "plx_snr":         ("Parallax / its error",  "Dimensionless — meaningful at any error scale"),
 }
-
-
-def load_clean() -> pl.DataFrame:
-    df = pl.read_csv(TRAIN)
-    num_cols = [c for c in df.columns if c != "Type"]
-    df = df.with_columns([pl.col(c).cast(pl.Float64, strict=False) for c in num_cols])
-    return df.drop_nulls(subset=num_cols)
-
-
-def add_features(df: pl.DataFrame) -> pl.DataFrame:
-    return df.with_columns([
-        (pl.col("pmra") ** 2 + pl.col("pmdec") ** 2).sqrt().alias("pm_total"),
-        (pl.col("phot_bp_mean_mag") - pl.col("phot_rp_mean_mag")).alias("bp_rp"),
-    ])
-
-
-def resolve_model_dir() -> Path:
-    for c in (ROOT / "outputs", ROOT / "reference" / "outputs"):
-        if (c / "xgb_baseline.joblib").exists():
-            return c
-    raise SystemExit("No xgb_baseline.joblib in outputs/ or reference/outputs/")
 
 
 def sweep_thresholds(y: np.ndarray, prob: np.ndarray) -> dict:
@@ -152,24 +136,34 @@ def feature_histograms(df: pl.DataFrame, features: list[str], y: np.ndarray) -> 
 
 
 def main() -> None:
-    print("loading...")
-    df = add_features(load_clean())
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default=None, help="registry name or directory")
+    ap.add_argument("--out", default="analysis.json", help="filename under web/public/data/")
+    ap.add_argument("--allow-reference", action="store_true",
+                    help="permit the prior-art model in reference/outputs/")
+    args = ap.parse_args()
 
-    model_dir = resolve_model_dir()
-    clf = joblib.load(model_dir / "xgb_baseline.joblib")
-    features = json.loads((model_dir / "feature_cols.json").read_text())
-    print(f"  model: {model_dir.relative_to(ROOT)}  ({len(features)} features)")
+    print("loading...")
+    df = lmc.load_sim(verbose=True)
+
+    model_dir, clf, features = models.load(args.model, allow_reference=args.allow_reference)
+    calibrator = models.load_calibrator(model_dir)
+    print(f"  model: {model_dir.relative_to(ROOT)}  ({len(features)} features)"
+          f"{'  + isotonic calibration' if calibrator is not None else '  (uncalibrated)'}")
 
     X = df.select(features).to_numpy().astype(np.float32)
     y = df["Type"].to_numpy()
 
-    # Reproduce notebook 02's split exactly so these are the notebook's numbers.
-    idx = np.arange(len(y))
-    _, test_idx = train_test_split(idx, test_size=0.2, stratify=y, random_state=42)
+    # Load the notebook's split rather than re-deriving it. load_split verifies a
+    # hash of the labels, so a cleaning change fails here instead of silently
+    # turning the "held-out" set into an arbitrary subset.
+    _, test_idx = load_split(model_dir / "split.npz", y)
     print(f"  held-out test set: {len(test_idx):,} stars ({y[test_idx].mean():.1%} LMC)")
 
     y_te = y[test_idx]
     prob_te = clf.predict_proba(X[test_idx])[:, 1]
+    if calibrator is not None:
+        prob_te = calibrator.predict(prob_te)
 
     print("sweeping thresholds...")
     sweep = sweep_thresholds(y_te, prob_te)
@@ -192,29 +186,51 @@ def main() -> None:
         key=lambda d: -d["value"],
     )
 
+    # Two separate reasons a column can be missing, and the UI should say which.
+    # Position was excluded from the start (notebook 02); the scale-carrying columns
+    # were removed only after real Gaia data showed what they cost (notebooks 04-05).
+    SCALE_CARRYING = ["pmra_error", "pmdec_error", "parallax_error", "parallax",
+                      "phot_g_mean_mag", "phot_bp_mean_mag", "phot_rp_mean_mag", "bp_rp"]
+    dropped_scale = [f for f in SCALE_CARRYING if f not in features]
+    excluded = ["ra", "dec"] + dropped_scale
+
+    reasons = [
+        "The LMC occupies a hard rectangular box in this simulated field "
+        "(RA 67.3-94.0, Dec -72.5 to -65.2), so a model given sky position would "
+        "memorise that box and score near-perfectly while learning no astrophysics."
+    ]
+    if dropped_scale:
+        reasons.append(
+            "The measurement errors and magnitudes were dropped after real Gaia stars "
+            "exposed what they cost: the simulated LMC is faint and kinematically frozen, "
+            "so 'bright and precisely measured' means foreground in training and does not "
+            "in the sky. Keeping them scored PR-AUC 0.9992 on simulation and recovered "
+            "24% of real Cepheids; dropping them recovers 96%."
+        )
+
     print("histograms...")
-    hists = feature_histograms(df, features, y)
+    # On the test split too. These used to be computed on the full dataframe, which
+    # contradicted this module's own "held-out only" claim — a small inconsistency,
+    # but the whole point of the file is that its numbers can be trusted.
+    hists = feature_histograms(df[test_idx], features, y_te)
 
     analysis = {
         "model": {
+            "name": model_dir.name,
             "kind": "XGBoost",
             "nEstimators": int(getattr(clf, "n_estimators", 0)),
             "maxDepth": int(getattr(clf, "max_depth", 0)),
             "scalePosWeight": round(float(getattr(clf, "scale_pos_weight", 0.0)), 3),
             "features": features,
-            "excluded": ["ra", "dec"],
-            "excludedReason": (
-                "The LMC occupies a hard rectangular box in this simulated field "
-                "(RA 67.3-94.0, Dec -72.5 to -65.2). A model given sky position would "
-                "memorise that box and score near-perfectly while learning no astrophysics - "
-                "and would then fail on real LMC members outside it."
-            ),
+            "calibrated": calibrator is not None,
+            "excluded": excluded,
+            "excludedReason": " ".join(reasons),
         },
         "dataset": {
             "totalRows": int(len(y)),
             "testRows": int(len(test_idx)),
             "lmcFraction": round(float(y.mean()), 4),
-            "corruptedRowsDropped": 1,
+            "corruptedRowsDropped": int(lmc.fingerprint().get("rows_dropped", 0)),
         },
         "headline": {
             "rocAuc": round(float(roc_auc_score(y_te, prob_te)), 5),
@@ -228,7 +244,7 @@ def main() -> None:
     }
 
     WEB_DATA.mkdir(parents=True, exist_ok=True)
-    out = WEB_DATA / "analysis.json"
+    out = WEB_DATA / args.out
     out.write_text(json.dumps(analysis, separators=(",", ":")))
     print(f"\nwrote {out.relative_to(ROOT)} ({out.stat().st_size / 1e3:.0f} KB)")
 

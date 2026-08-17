@@ -1,0 +1,92 @@
+{
+  "model": "v2_robust",
+  "task": "Classify a Gaia source as a Large Magellanic Cloud member or Milky Way foreground.",
+  "features": [
+    "pmra",
+    "pmdec",
+    "pm_total",
+    "plx_snr"
+  ],
+  "training_data": {
+    "source": "Gaia Object Generator simulation (LMC+MW_GOG_trainingset_frac=0.2.csv)",
+    "rows": 1269704,
+    "lmc_fraction": 0.2183,
+    "known_flaws": [
+      "The simulated LMC has ZERO intrinsic proper-motion dispersion (fitted s = 0.000 mas/yr against 0.385 for the real LMC); it does not rotate.",
+      "The simulated LMC is faint (median G 18.98) and contains almost no bright supergiants, so 'bright' correlates with 'foreground' in a way that is false on sky.",
+      "All LMC rows fall inside one RA/Dec rectangle \u2014 a sampling-window artifact, which is why sky position is excluded."
+    ]
+  },
+  "validation": {
+    "in_domain": "held-out 20% of the simulation, split saved with a label hash",
+    "out_of_domain": "4,485 Cepheids and 22,006 RR Lyrae confirmed as LMC members by variability \u2014 independent of every feature the model sees",
+    "protocol": "Real catalogues halved into dev/lock stratified on G. All design choices made on dev; lock opened once, in notebook 06."
+  },
+  "performance": {
+    "simulated_held_out": {
+      "roc_auc": 0.99882,
+      "pr_auc": 0.99457,
+      "recall": 0.98346,
+      "purity": 0.96905,
+      "brier": 0.00825
+    },
+    "real_sky_lock": {
+      "completeness-first": {
+        "threshold": 0.27,
+        "cepheid": {
+          "k": 2125,
+          "n": 2213,
+          "recall": 0.9602,
+          "ci95": [
+            0.9513,
+            0.9676
+          ]
+        },
+        "rrlyrae": {
+          "k": 8443,
+          "n": 10662,
+          "recall": 0.7919,
+          "ci95": [
+            0.7841,
+            0.7995
+          ]
+        }
+      },
+      "purity-first": {
+        "threshold": 0.93,
+        "cepheid": {
+          "k": 1636,
+          "n": 2213,
+          "recall": 0.7393,
+          "ci95": [
+            0.7206,
+            0.7571
+          ]
+        },
+        "rrlyrae": {
+          "k": 4307,
+          "n": 10662,
+          "recall": 0.404,
+          "ci95": [
+            0.3947,
+            0.4133
+          ]
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Recall only on real data: the validation catalogues contain no negatives, so purity has never been measured against real foreground stars. Every purity figure comes from the simulation.",
+    "Both validation catalogues are variable stars. Performance on the LMC's ordinary stellar population is untested.",
+    "RR Lyrae fainter than G = 20 are recovered at a much lower rate; their proper-motion errors exceed the width of the clump being searched for.",
+    "Calibration was fitted on simulated data, so calibrated probabilities inherit the simulation's class balance and should be treated as approximate on real fields."
+  ],
+  "do_not_use_for": [
+    "Any field where the LMC is not the dominant co-moving population \u2014 the model encodes one specific bulk motion, near (1.86, 0.38) mas/yr.",
+    "Surveys whose astrometric error scale differs materially from Gaia EDR3.",
+    "Distance estimation. Parallax enters only as a signal-to-noise ratio, and at 50 kpc individual Gaia parallaxes are consistent with zero."
+  ],
+  "supersedes": {
+    "v1_baseline": "PR-AUC 0.9992 on simulated data and 22.3% recall on real Cepheids. Its eleven features included three measurement errors and four magnitudes, all carrying an absolute scale the simulation sets differently from reality."
+  }
+}

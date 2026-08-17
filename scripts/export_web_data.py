@@ -14,9 +14,7 @@ Output (into web/public/data/):
 Usage:
     python scripts/export_web_data.py
     python scripts/export_web_data.py --n 400000
-
-Note: falls back to reference/outputs/ if outputs/ has no model yet, so you can
-test the whole web pipeline before notebook 02 is written.
+    python scripts/export_web_data.py --model v2_robust
 """
 
 from __future__ import annotations
@@ -25,16 +23,15 @@ import argparse
 import json
 from pathlib import Path
 
-import joblib
 import numpy as np
 import polars as pl
-from sklearn.model_selection import train_test_split
+
+import lmc
+from lmc import models
+from lmc.split import load_split
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
 WEB_DATA = ROOT / "web" / "public" / "data"
-
-TRAIN = DATA / "LMC+MW_GOG_trainingset_frac=0.2.csv"
 
 # Rows outside this percentile band on ANY plotted column are DROPPED, not clamped.
 # Clamping piles every outlier onto the range boundary, which renders as hard bright
@@ -49,30 +46,6 @@ RA0, DEC0 = 80.9, -69.3
 INT16_BLOCKS = ["skyX", "skyY", "pmra", "pmdec", "bp_rp", "gmag", "plx", "depth"]
 UINT8_BLOCKS = ["type", "prob", "isTest"]
 BYTES_PER_STAR = len(INT16_BLOCKS) * 2 + len(UINT8_BLOCKS)  # 19
-
-
-def load_clean() -> pl.DataFrame:
-    """Load the CSV and repair the one corrupted value.
-
-    Row 11 has pmra = "1.8598455n11059828" — a stray 'n'. That single bad character
-    forces Polars to type the entire pmra column as string, which silently breaks
-    everything downstream. Cast non-strictly (bad values -> null), then drop.
-    """
-    df = pl.read_csv(TRAIN)
-    num_cols = [c for c in df.columns if c != "Type"]
-    df = df.with_columns([pl.col(c).cast(pl.Float64, strict=False) for c in num_cols])
-
-    before = df.height
-    df = df.drop_nulls(subset=num_cols)
-    print(f"  dropped {before - df.height} corrupted row(s) -> {df.height:,} clean rows")
-    return df
-
-
-def add_features(df: pl.DataFrame) -> pl.DataFrame:
-    return df.with_columns([
-        (pl.col("pmra") ** 2 + pl.col("pmdec") ** 2).sqrt().alias("pm_total"),
-        (pl.col("phot_bp_mean_mag") - pl.col("phot_rp_mean_mag")).alias("bp_rp"),
-    ])
 
 
 def gnomonic(ra: np.ndarray, dec: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -101,21 +74,8 @@ def measured_depth(parallax: np.ndarray) -> np.ndarray:
     return np.log10(1.0 / np.maximum(parallax, 0.005))
 
 
-def resolve_model_dir(preferred: Path) -> Path:
-    if (preferred / "xgb_baseline.joblib").exists():
-        return preferred
-    fallback = ROOT / "reference" / "outputs"
-    if (fallback / "xgb_baseline.joblib").exists():
-        print(f"  ! no model in {preferred.relative_to(ROOT)}, using reference/outputs/")
-        return fallback
-    raise SystemExit(f"No model found in {preferred} or {fallback}. Run notebook 02 first.")
-
-
-def predict(df: pl.DataFrame, model_dir: Path) -> np.ndarray:
-    clf = joblib.load(model_dir / "xgb_baseline.joblib")
-    features = json.loads((model_dir / "feature_cols.json").read_text())
-    X = df.select(features).to_numpy().astype(np.float32)
-    prob = clf.predict_proba(X)[:, 1]
+def predict(df: pl.DataFrame, clf, features: list[str], calibrator=None) -> np.ndarray:
+    prob = models.predict(clf, features, df, calibrator)
     print(f"  predicted {len(prob):,} stars  (mean P(LMC) = {prob.mean():.3f})")
     return prob
 
@@ -161,25 +121,29 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=250_000)
     ap.add_argument("--preview", type=int, default=25_000)
-    ap.add_argument("--model", type=Path, default=ROOT / "outputs")
+    ap.add_argument("--model", default=None, help="registry name or directory")
+    ap.add_argument("--allow-reference", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
     WEB_DATA.mkdir(parents=True, exist_ok=True)
 
     print("loading training set...")
-    df = add_features(load_clean())
+    df = lmc.load_sim(verbose=True)
 
     print("running model...")
-    prob_all = predict(df, resolve_model_dir(args.model))
+    model_dir, clf, features = models.load(args.model, allow_reference=args.allow_reference)
+    calibrator = models.load_calibrator(model_dir)
+    print(f"  model: {model_dir.relative_to(ROOT)}  ({len(features)} features)"
+          f"{'  + isotonic calibration' if calibrator is not None else '  (uncalibrated)'}")
+    prob_all = predict(df, clf, features, calibrator)
     y_all = df["Type"].to_numpy()
 
     # Mark the held-out rows. Act 7 ("where the model is wrong") must show only
     # these — training-row errors would understate the error rate in the one place
-    # we explicitly claim to be honest. Same split as notebook 02.
-    _, test_idx = train_test_split(
-        np.arange(len(y_all)), test_size=0.2, stratify=y_all, random_state=42
-    )
+    # we explicitly claim to be honest. Loaded from the notebook's own split, with
+    # a label hash checked on the way in.
+    _, test_idx = load_split(model_dir / "split.npz", y_all)
     is_test_all = np.zeros(len(y_all), dtype=bool)
     is_test_all[test_idx] = True
 
@@ -239,6 +203,7 @@ def main() -> None:
         "testFraction": round(float(is_test[full].mean()), 4),
         "sourceRows": int(len(y_all)),
         "projection": {"kind": "gnomonic", "ra0": RA0, "dec0": DEC0},
+        "model": model_dir.name,
     }
     (WEB_DATA / "stars.meta.json").write_text(json.dumps(meta, indent=2))
     print(f"  wrote {(WEB_DATA / 'stars.meta.json').relative_to(ROOT)}")

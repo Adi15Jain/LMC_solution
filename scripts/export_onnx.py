@@ -11,37 +11,36 @@ inferences in the browser.
 
 Usage:
     python scripts/export_onnx.py
+    python scripts/export_onnx.py --model v2_robust
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
-import joblib
 import numpy as np
+
+from lmc import models
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_MODEL = ROOT / "web" / "public" / "model"
 
 
-def resolve_model_dir() -> Path:
-    for candidate in (ROOT / "outputs", ROOT / "reference" / "outputs"):
-        if (candidate / "xgb_baseline.joblib").exists():
-            return candidate
-    raise SystemExit("No xgb_baseline.joblib found in outputs/ or reference/outputs/")
-
-
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default=None, help="registry name or directory")
+    ap.add_argument("--allow-reference", action="store_true")
+    args = ap.parse_args()
+
     try:
         from onnxmltools import convert_xgboost
         from onnxmltools.convert.common.data_types import FloatTensorType
     except ImportError:
         raise SystemExit("pip install onnxmltools onnx onnxruntime")
 
-    model_dir = resolve_model_dir()
-    clf = joblib.load(model_dir / "xgb_baseline.joblib")
-    features = json.loads((model_dir / "feature_cols.json").read_text())
+    model_dir, clf, features = models.load(args.model, allow_reference=args.allow_reference)
     print(f"loaded model from {model_dir.relative_to(ROOT)} ({len(features)} features)")
 
     # ---------------------------------------------------------------------

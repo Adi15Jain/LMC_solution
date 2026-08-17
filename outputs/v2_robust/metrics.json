@@ -1,0 +1,119 @@
+{
+  "name": "v2_robust",
+  "seed": 42,
+  "data_fingerprint": {
+    "source": "LMC+MW_GOG_trainingset_frac=0.2.csv",
+    "source_sha256": "226a8fd3d586ddd01f2de225f1cb737c79f584896003ca8334056cc12149cc91",
+    "rows_raw": 1269705,
+    "rows_clean": 1269704,
+    "rows_dropped": 1,
+    "columns": [
+      "ra",
+      "dec",
+      "pmra",
+      "pmra_error",
+      "pmdec",
+      "pmdec_error",
+      "phot_g_mean_mag",
+      "phot_bp_mean_mag",
+      "phot_rp_mean_mag",
+      "parallax",
+      "parallax_error",
+      "Type",
+      "pm_total",
+      "bp_rp",
+      "plx_snr"
+    ]
+  },
+  "features": [
+    "pmra",
+    "pmdec",
+    "pm_total",
+    "plx_snr"
+  ],
+  "excluded_features": [
+    "bp_rp",
+    "parallax",
+    "parallax_error",
+    "phot_bp_mean_mag",
+    "phot_g_mean_mag",
+    "phot_rp_mean_mag",
+    "pmdec_error",
+    "pmra_error"
+  ],
+  "exclusion_reason": "Every excluded column carries an absolute scale the simulation calibrates to itself: three measurement errors and four magnitudes. Notebook 04 shows the simulated LMC is faint (median G 18.98), so bright, precisely-measured stars are labelled foreground -- false for real Cepheids, which are supergiants.",
+  "n_train_fit": 914186,
+  "n_calibration": 101577,
+  "n_test": 253941,
+  "scale_pos_weight": 3.5808,
+  "calibration": "isotonic, fitted on a 10% slice carved out of the training half",
+  "threshold": 0.5,
+  "simulated_raw": {
+    "roc_auc": 0.99885,
+    "pr_auc": 0.995,
+    "recall": 0.99206,
+    "purity": 0.95547,
+    "brier": 0.00951
+  },
+  "simulated_calibrated": {
+    "roc_auc": 0.99882,
+    "pr_auc": 0.99457,
+    "recall": 0.98346,
+    "purity": 0.96905,
+    "brier": 0.00825
+  },
+  "real_dev_raw": {
+    "cepheid": {
+      "k": 2190,
+      "n": 2254,
+      "recall": 0.9716,
+      "ci95": [
+        0.9639,
+        0.9777
+      ]
+    },
+    "rrlyrae": {
+      "k": 8823,
+      "n": 10665,
+      "recall": 0.8273,
+      "ci95": [
+        0.82,
+        0.8343
+      ]
+    }
+  },
+  "real_dev_calibrated": {
+    "cepheid": {
+      "k": 2162,
+      "n": 2254,
+      "recall": 0.9592,
+      "ci95": [
+        0.9502,
+        0.9666
+      ]
+    },
+    "rrlyrae": {
+      "k": 7909,
+      "n": 10665,
+      "recall": 0.7416,
+      "ci95": [
+        0.7332,
+        0.7498
+      ]
+    }
+  },
+  "v1_comparison": {
+    "simulated_pr_auc": 0.99921,
+    "simulated_purity": 0.98036,
+    "real_dev_cepheid_recall": 0.2232,
+    "real_dev_rrlyrae_recall": 0.7682
+  },
+  "caveat": "Feature set chosen while watching the dev half, so every real-sky number here is a development figure. Notebook 06 reports the sealed lock half.",
+  "hyperparameters": {
+    "n_estimators": 400,
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9
+  }
+}

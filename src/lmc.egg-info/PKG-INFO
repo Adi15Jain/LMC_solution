@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: lmc
+Version: 0.1.0
+Summary: Separating Large Magellanic Cloud members from Milky Way foreground in Gaia data
+Requires-Python: >=3.12
+Requires-Dist: polars==1.42.1
+Requires-Dist: numpy==2.5.1
+Requires-Dist: scipy==1.18.0
+Requires-Dist: scikit-learn==1.9.0
+Requires-Dist: xgboost==3.3.0
+Requires-Dist: joblib==1.5.3
+Requires-Dist: matplotlib==3.11.1
+Requires-Dist: pyarrow==25.0.0
+Provides-Extra: web
+Requires-Dist: onnx; extra == "web"
+Requires-Dist: onnxmltools; extra == "web"
+Requires-Dist: onnxruntime; extra == "web"
+Provides-Extra: notebook
+Requires-Dist: jupyter; extra == "notebook"
+Requires-Dist: jupyterlab; extra == "notebook"
+Requires-Dist: ipykernel; extra == "notebook"

@@ -37,6 +37,8 @@ export interface Histogram {
 
 export interface Analysis {
   model: {
+    /** Registry name of the model these numbers came from, e.g. "v2_robust". */
+    name?: string;
     kind: string;
     nEstimators: number;
     maxDepth: number;
@@ -44,6 +46,12 @@ export interface Analysis {
     features: string[];
     excluded: string[];
     excludedReason: string;
+    /**
+     * Whether the probabilities are isotonic-calibrated. When false, they are the
+     * raw XGBoost scores, which `scale_pos_weight` inflates — so a threshold of
+     * 0.5 does not mean "50% likely" and the UI should not claim it does.
+     */
+    calibrated?: boolean;
   };
   dataset: {
     totalRows: number;

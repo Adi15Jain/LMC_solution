@@ -1,0 +1,9 @@
+{
+  "mu_pmra": 1.857876505266357,
+  "mu_pmdec": 0.3848762821233432,
+  "s_intrinsic_simulated": 0.0,
+  "s_intrinsic_real_dev": 0.38489,
+  "s_intrinsic_cepheid": 0.31534,
+  "s_intrinsic_rrlyrae": 0.41636,
+  "note": "Intrinsic proper-motion dispersion of the LMC in mas/yr, fitted by requiring the chi2 median to equal 2*ln(2). The simulated value is exactly zero: GOG gives its LMC no internal kinematics at all. NOT used by the v2 feature set -- see notebook 05 section 3 for why the derived chi2 feature was rejected."
+}

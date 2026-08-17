@@ -92,5 +92,17 @@ over the held-out split with quadrant→cloud highlighting; threshold slider; fe
 importances; per-feature class distributions ranked by Cohen's d; sandbox controls.
 
 **Not built yet:** the ONNX probe (Act 6 interactivity — `lib/onnx.ts` is written but
-unused), GPU picking / hover tooltips, camera choreography, the Gaia spacecraft model,
-and the real-sky Cepheid/RR Lyrae act (blocked on notebook 03).
+unused, and `public/model/` does not exist until `scripts/export_onnx.py` is run), GPU
+picking / hover tooltips, camera choreography, the Gaia spacecraft model, and the
+real-sky Cepheid/RR Lyrae act.
+
+**No longer blocked.** Notebooks 03–06 are finished, and `public/data/realsky.json` now
+carries everything Act 8 needs: per-catalogue recall for both models on the sealed
+`lock` half with Wilson intervals, the per-feature covariate shift with KS distances,
+12,000 real stars with both models' probabilities for the scatter, and the irreducible
+ceiling. The headline: **v1 recovers 24.5% of real Cepheids, v2 recovers 96.0%.**
+
+Note that `analysis.json` now describes **v2**, which has four features rather than
+eleven — so `importances` and `histograms` have four entries. `analysis.v1.json` holds
+the old model's numbers for the before/after comparison. `model.calibrated` is new: v2's
+probabilities are isotonic-calibrated, so the threshold slider's label is finally true.

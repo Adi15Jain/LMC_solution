@@ -1,0 +1,43 @@
+{
+  "v1_baseline": {
+    "dir": "outputs/v1_baseline",
+    "notebook": "02-baseline_model.ipynb",
+    "features": [
+      "pmra",
+      "pmdec",
+      "pm_total",
+      "parallax",
+      "pmra_error",
+      "pmdec_error",
+      "parallax_error",
+      "phot_g_mean_mag",
+      "phot_bp_mean_mag",
+      "phot_rp_mean_mag",
+      "bp_rp"
+    ],
+    "headline": {
+      "roc_auc": 0.9998,
+      "pr_auc": 0.9992,
+      "recall_lmc": 0.9958,
+      "purity_lmc": 0.9804
+    },
+    "note": "Simulated data only. Real-sky transfer is measured in notebook 03."
+  },
+  "v2_robust": {
+    "dir": "outputs/v2_robust",
+    "notebook": "05-domain_robust_model.ipynb",
+    "features": [
+      "pmra",
+      "pmdec",
+      "pm_total",
+      "plx_snr"
+    ],
+    "headline": {
+      "pr_auc": 0.995,
+      "purity_lmc": 0.9555,
+      "real_cepheid_recall_dev": 0.9716,
+      "real_rrlyrae_recall_dev": 0.8273
+    },
+    "note": "Validated on real Gaia stars. Scores lower in-domain than v1, by design."
+  }
+}

@@ -60,5 +60,6 @@
     "kind": "gnomonic",
     "ra0": 80.9,
     "dec0": -69.3
-  }
+  },
+  "model": "v2_robust"
 }
